@@ -24,7 +24,7 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
 	//   x, y, theta and their uncertainties from GPS) and all weights to 1. 
 	// Add random Gaussian noise to each particle.
 	// NOTE: Consult particle_filter.h for more information about this method (and others in this file).
-	num_particles = 300;
+	num_particles = 100;
 	
 	double gps_x = x;
 	double gps_y = y;
@@ -51,7 +51,7 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
 	  particle.weight = 1.0;
 
 	  particles.push_back(particle);
-	  weights.push_back(particle.weight);
+	  weights.push_back(1.0);
 	}
 
 	is_initialized = true;
@@ -69,22 +69,24 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 	std_y = std_pos[1];
 	std_theta = std_pos[2];        
 
+        // Random Gaussian Noise distributions
+	normal_distribution<double> noise_x(0.0, std_x);
+	normal_distribution<double> noise_y(0.0, std_y);
+	normal_distribution<double> noise_theta(0.0, std_theta);
+	
 	for (int k=0; k < num_particles; k++) {
 	  Particle& particle = particles[k];
 	  // if yaw_rate is non zero
-          if(fabs(yaw_rate) < 0.0001) {
-            particle.x += velocity * delta_t * cos(particle.theta);
-	    particle.y += velocity * delta_t * sin(particle.theta);
-	  } else {
-	    particle.x += velocity/yaw_rate * ( sin(particle.theta + yaw_rate * delta_t) - sin(particle.theta) );
+          if(fabs(yaw_rate) > 0.0001) {
+            
+            particle.x += velocity/yaw_rate * ( sin(particle.theta + yaw_rate * delta_t) - sin(particle.theta) );
 	    particle.y += velocity/yaw_rate * ( cos(particle.theta) - cos(particle.theta + yaw_rate * delta_t) );
-	    particle.theta += particle.theta + yaw_rate * delta_t;
+	    particle.theta +=  yaw_rate * delta_t;
+
+	  } else {
+             particle.x += velocity * delta_t * cos(particle.theta);
+	     particle.y += velocity * delta_t * sin(particle.theta);
 	  }
-	
-	  // Random Gaussian Noise distributions
-	  normal_distribution<double> noise_x(0.0, std_x);
-	  normal_distribution<double> noise_y(0.0, std_y);
-	  normal_distribution<double> noise_theta(0.0, std_theta);
 
 	  particle.x += noise_x(gen);
 	  particle.y += noise_y(gen);
@@ -181,7 +183,7 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 
 	    particle.weight *= norm * exp(- (term1 + term2));
 	  }
-	  SetAssociations(particle, associations, sense_x, sense_y);
+	  particle = SetAssociations(particle, associations, sense_x, sense_y);
           weights[k] = particle.weight;
 	}
 }
@@ -200,7 +202,7 @@ void ParticleFilter::resample() {
 	particles = samples;
 }
 
-void ParticleFilter::SetAssociations(Particle& particle, const std::vector<int>& associations, 
+Particle ParticleFilter::SetAssociations(Particle& particle, const std::vector<int>& associations, 
                                      const std::vector<double>& sense_x, const std::vector<double>& sense_y)
 {
     //particle: the particle to assign each listed association, and association's (x,y) world coordinates mapping to
@@ -212,6 +214,7 @@ void ParticleFilter::SetAssociations(Particle& particle, const std::vector<int>&
     particle.sense_x = sense_x;
     particle.sense_y = sense_y;
 
+    return particle;
 }
 
 string ParticleFilter::getAssociations(Particle best)
